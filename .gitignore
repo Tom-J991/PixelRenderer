@@ -453,3 +453,5 @@ dkms.conf
 bin/*
 obj/*
 
+!lib/**
+
