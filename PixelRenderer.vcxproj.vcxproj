@@ -96,6 +96,30 @@
     <ClCompile Include="lib\glad\src\glad.c" />
     <ClCompile Include="src\main.c" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\textures\T_00.h" />
+    <ClInclude Include="src\textures\T_01.h" />
+    <ClInclude Include="src\textures\T_02.h" />
+    <ClInclude Include="src\textures\T_03.h" />
+    <ClInclude Include="src\textures\T_04.h" />
+    <ClInclude Include="src\textures\T_05.h" />
+    <ClInclude Include="src\textures\T_06.h" />
+    <ClInclude Include="src\textures\T_07.h" />
+    <ClInclude Include="src\textures\T_08.h" />
+    <ClInclude Include="src\textures\T_09.h" />
+    <ClInclude Include="src\textures\T_10.h" />
+    <ClInclude Include="src\textures\T_11.h" />
+    <ClInclude Include="src\textures\T_12.h" />
+    <ClInclude Include="src\textures\T_13.h" />
+    <ClInclude Include="src\textures\T_14.h" />
+    <ClInclude Include="src\textures\T_15.h" />
+    <ClInclude Include="src\textures\T_16.h" />
+    <ClInclude Include="src\textures\T_17.h" />
+    <ClInclude Include="src\textures\T_18.h" />
+    <ClInclude Include="src\textures\T_19.h" />
+    <ClInclude Include="src\textures\T_NUMBERS.h" />
+    <ClInclude Include="src\textures\T_VIEW2D.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

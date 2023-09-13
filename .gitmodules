@@ -1,0 +1,3 @@
+[submodule "thirdparty/3DSage_DoomStyle_LevelEditor"]
+	path = thirdparty/3DSage_DoomStyle_LevelEditor
+	url = https://github.com/Tom-J991/3DSage_DoomStyle_LevelEditor
