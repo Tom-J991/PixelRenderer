@@ -62,8 +62,6 @@ const unsigned int buffer_width = 160;
 const unsigned int buffer_height = 120;
 const unsigned int buffer_channels = 3;
 
-const double targetFPS = 35.0; // default: 35
-
 // Structs
 typedef struct
 {
@@ -133,7 +131,7 @@ GLFWwindow *window;
 unsigned int indiceCount = 0;
 
 unsigned int VAO;
-unsigned int VBO;
+unsigned int VBO[2];
 unsigned int EBO;
 unsigned int PBO[2];
 
@@ -236,12 +234,13 @@ void initOpenGL()
 	const char *vertexCode =
 		"#version 330 core\n"
 		"layout (location = 0) in vec2 aPos;\n"
+		"layout (location = 1) in vec2 aTexCoords;\n"
 		"out vec2 texCoord;\n"
 		"uniform mat4 view;\n"
 		"uniform mat4 projection;\n"
 		"void main()\n"
 		"{\n"
-		"	texCoord = aPos;\n"
+		"	texCoord = aTexCoords;\n"
 		"	gl_Position = projection * view * vec4(aPos.xy, 0.0f, 1.0);\n"
 		"}\n";
 	const char *fragmentCode =
@@ -258,14 +257,21 @@ void initOpenGL()
 	const float vertices[] =
 	{
 		0.0f, 0.0f,
+		(float)screen_width, 0.0f,
+		(float)screen_width, (float)screen_height,
+		0.0f, (float)screen_height
+	};
+	const float texCoords[] =
+	{
+		0.0f, 0.0f,
 		1.0f, 0.0f,
 		1.0f, 1.0f,
 		0.0f, 1.0f
 	};
 	const unsigned int indices[] =
 	{
-		0, 3, 1,
-		3, 2, 1
+		0, 1, 3,
+		1, 2, 3
 	};
 	indiceCount = sizeof(indices) / sizeof(unsigned int);
 
@@ -281,6 +287,8 @@ void initOpenGL()
 	glfwMakeContextCurrent(window);
 
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+
+	glfwSwapInterval(0); // Disable VSync.
 
 	// Setup Callbacks.
 	glfwSetKeyCallback(window, keyCallback);
@@ -319,11 +327,15 @@ void initOpenGL()
 	glGenVertexArrays(1, &VAO);
 	glBindVertexArray(VAO);
 
-	glGenBuffers(1, &VBO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glGenBuffers(2, VBO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
 	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(texCoords), texCoords, GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
+	glEnableVertexAttribArray(1);
 
 	glGenBuffers(1, &EBO);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -355,7 +367,7 @@ void initOpenGL()
 	glm_mat4_identity(view);
 	glm_translate(view, (vec3) { 0.0f, 0.0f, -1.0f });
 
-	glm_ortho(0.0f, 1.0f, 1.0f, 0.0f, 0.1f, 1000.0f, projection);
+	glm_ortho(0.0f, screen_width, 0.0f, screen_height, 0.1f, 1000.0f, projection);
 
 	// Set Shader Uniforms.
 	glUseProgram(shaderProgram);
@@ -430,7 +442,7 @@ void cleanupOpenGL()
 	glDeleteBuffers(2, PBO);
 
 	glDeleteVertexArrays(1, &VAO);
-	glDeleteBuffers(1, &VBO);
+	glDeleteBuffers(2, VBO);
 	glDeleteBuffers(1, &EBO);
 	glDeleteProgram(shaderProgram);
 
@@ -443,7 +455,9 @@ void runGame()
 	initGame();
 
 	// Game Loop.
-	double timeBetweenFrames = 1.0f / targetFPS;
+	const double targetFPS = -1; // Maximum renders between frames. -1 Disable render frame cap.
+	const double targetTicks = 35.0; // Maximum updates between frames. default: 35
+	double timeBetweenFrames = 1.0f / targetTicks;
 
 	double now = 0.0;
 	double lastTime = glfwGetTime();
@@ -460,7 +474,11 @@ void runGame()
 		deltaTime += (now - lastTime) / timeBetweenFrames;
 		lastTime = now;
 
-		shouldRender = false;
+		if (targetFPS == -1)
+			shouldRender = true;
+		else
+			shouldRender = false;
+
 		while (deltaTime >= 1.0)
 		{
 			tick();
@@ -470,10 +488,13 @@ void runGame()
 			deltaTime -= 1.0;
 		}
 
-		double timeToSleep = (1 - deltaTime) * 1000.0 / targetFPS;
-#ifdef _WIN32
-		Sleep(timeToSleep);
-#endif
+		if (targetFPS != -1)
+		{
+			double timeToSleep = (1 - deltaTime) * 1000.0 / targetTicks;
+			#ifdef _WIN32
+			Sleep(timeToSleep);
+			#endif
+		}
 
 		if (shouldRender)
 		{
@@ -552,10 +573,10 @@ void tick()
 	if (playerInput.m) // Modifier Key Down
 	{
 		// Look.
-		if (playerInput.w) { player.z -= 4; }
-		if (playerInput.s) { player.z += 4; }
-		if (playerInput.a) { player.look -= 1; }
-		if (playerInput.d) { player.look += 1; }
+		if (playerInput.w) { player.z += 4; }
+		if (playerInput.s) { player.z -= 4; }
+		if (playerInput.a) { player.look += 1; }
+		if (playerInput.d) { player.look -= 1; }
 	}
 	else // Modifier Key Up
 	{
@@ -778,7 +799,7 @@ void drawWall(int x1, int x2, int b1, int b2, int t1, int t2, int s, int w, int 
 
 		// Calculate vertical texture coordinates.
 		float vt = 0;
-		float vt_step = (float)textures[wt].h*walls[wt].v / (float)(y2 - y1);
+		float vt_step = (float)textures[wt].h * walls[w].v / (float)(y2 - y1);
 
 		// Clip Y
 		if (y1 < 0) { vt -= vt_step * y1; y1 = 0; }
@@ -798,7 +819,7 @@ void drawWall(int x1, int x2, int b1, int b2, int t1, int t2, int s, int w, int 
 				int r, g, b;
 
 				int xx = ((int)ht % textures[wt].w) * textureChannels;
-				int yy = ((int)vt % textures[wt].h) * textureChannels;
+				int yy = (int)(textures[wt].h-((int)vt%textures[wt].h)-1) * textureChannels;
 				int sample = xx + yy * textures[wt].w;
 
 				float shade = 1 - ((walls[w].shade / 2) * 0.01f);
@@ -858,7 +879,7 @@ void drawWall(int x1, int x2, int b1, int b2, int t1, int t2, int s, int w, int 
 				int r, g, b;
 
 				int xx = ((int)rx % textures[st].w) * textureChannels;
-				int yy = ((int)ry % textures[st].h) * textureChannels;
+				int yy = (int)(textures[st].h-((int)ry%textures[st].h)-1) * textureChannels;
 				int sample = xx + yy * textures[wt].w;
 
 				r = textures[wt].name[sample];
