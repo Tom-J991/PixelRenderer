@@ -1,6 +1,0 @@
-Rendering individual pixels using OpenGL.
-
-Doom Rendering Engine base copied from https://www.youtube.com/@3DSage
-Textures: https://poloviiinkin.itch.io/textures
-
-git clone --recurse-submodules https://github.com/Tom-J991/PixelRenderer.git
