@@ -45,22 +45,22 @@
 int numText = 19;			//number of textures
 
 // Macros
-#define BACKGROUND (RGB){ 0x00, 0x3C, 0x82 }
-#define YELLOW (RGB){ 0xff, 0xff, 0x00 }
-#define GREEN (RGB){ 0x00, 0xff, 0x00 }
-#define CYAN (RGB){ 0x00, 0xff, 0xff }
-#define BROWN (RGB){ 0xA0, 0x64, 0x00 }
-#define DARK_YELLOW (RGB){ 0xA0, 0xA0, 0x00 }
-#define DARK_GREEN (RGB){ 0x00, 0xA0, 0x00 }
-#define DARK_CYAN (RGB){ 0x00, 0xA0, 0xA0 }
-#define DARK_BROWN (RGB){ 0x6E, 0x32, 0x00 }
+#define BACKGROUND		(RGBA){ 0x00, 0x3C, 0x82, 0xff }
+#define YELLOW			(RGBA){ 0xff, 0xff, 0x00, 0xff }
+#define GREEN			(RGBA){ 0x00, 0xff, 0x00, 0xff }
+#define CYAN			(RGBA){ 0x00, 0xff, 0xff, 0xff }
+#define BROWN			(RGBA){ 0xA0, 0x64, 0x00, 0xff }
+#define DARK_YELLOW		(RGBA){ 0xA0, 0xA0, 0x00, 0xff }
+#define DARK_GREEN		(RGBA){ 0x00, 0xA0, 0x00, 0xff }
+#define DARK_CYAN		(RGBA){ 0x00, 0xA0, 0xA0, 0xff }
+#define DARK_BROWN		(RGBA){ 0x6E, 0x32, 0x00, 0xff }
 
 // Constants
 const char *window_name = "Pixel Test";
 
 const unsigned int buffer_width = 160;
 const unsigned int buffer_height = 120;
-const unsigned int buffer_channels = 3;
+const unsigned int buffer_channels = 4;
 
 // Structs
 typedef struct
@@ -72,10 +72,11 @@ typedef struct
 			unsigned char r;
 			unsigned char g;
 			unsigned char b;
+			unsigned char a;
 		};
-		unsigned int rgb;
+		unsigned int rgba;
 	};
-} RGB;
+} RGBA;
 
 typedef struct
 {
@@ -140,11 +141,11 @@ mat4 view, projection;
 
 unsigned int texture;
 
-unsigned char *imageBuffer;
-unsigned char *framebuffer[4];
-size_t fbuffer_count = 4;
 size_t buffer_size;
-unsigned int activeFramebuffer = 0;
+size_t fbuffer_count = 4;
+unsigned char *imageBuffer;
+unsigned char *framebuffer[4]; // 0 for 3D stuff, 1 & 2 are spare, 3 is all framebuffers combined.
+unsigned int activeFramebuffer = 3;
 
 unsigned int scale = 4;
 unsigned int screen_width;
@@ -183,8 +184,9 @@ void startOpenGLRender();
 void endOpenGLRender();
 void cleanupOpenGL();
 
-void clearBackground(unsigned char *framebuffer, const RGB color);
-void drawPixel(unsigned char *framebuffer, const int x, const int y, const RGB color);
+void clearBackground(unsigned char *framebuffer, const RGBA color);
+void drawPixel(unsigned char *framebuffer, const int x, const int y, const RGBA color);
+void combineFramebuffers();
 
 void loadScene();
 void draw3D();
@@ -351,7 +353,10 @@ void initOpenGL()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, buffer_width, buffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, imageBuffer);
+	if (buffer_channels == 3)
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, buffer_width, buffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, imageBuffer);
+	else if (buffer_channels == 4)
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, buffer_width, buffer_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, imageBuffer);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -393,7 +398,10 @@ void startOpenGLRender()
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, PBO[index]);
 
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, buffer_width, buffer_height, GL_RGB, GL_UNSIGNED_BYTE, 0);
+	if (buffer_channels == 3)
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, buffer_width, buffer_height, GL_RGB, GL_UNSIGNED_BYTE, 0);
+	else if (buffer_channels == 4)
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, buffer_width, buffer_height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 
 	// Copy Image Buffer to Pixel Buffer.
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, PBO[nextIndex]);
@@ -500,6 +508,7 @@ void runGame()
 		{
 			startOpenGLRender();
 			render();
+			combineFramebuffers();
 			endOpenGLRender();
 			frames++;
 		}
@@ -597,11 +606,18 @@ void render()
 {
 	// Draw to Image Buffer.
 	clearBackground(framebuffer[0], BACKGROUND);
-	//drawFloors();
-	draw3D();
+	draw3D(); // Draws to framebuffer 0.
+
+	for (size_t y = 0; y < 16; ++y)
+	{
+		for (size_t x = 0; x < 16; ++x)
+		{
+			drawPixel(framebuffer[1], x, y, (RGBA) { 0xff, 0x00, 0xff, 0xff });
+		}
+	}
 }
 
-void clearBackground(unsigned char *framebuffer, const RGB color)
+void clearBackground(unsigned char *framebuffer, const RGBA color)
 {
 	for (size_t y = 0; y < buffer_height; ++y)
 	{
@@ -611,7 +627,7 @@ void clearBackground(unsigned char *framebuffer, const RGB color)
 		}
 	}
 }
-void drawPixel(unsigned char *framebuffer, const int x, const int y, const RGB color)
+void drawPixel(unsigned char *framebuffer, const int x, const int y, const RGBA color)
 {
 	if (x > buffer_width-1 || x < 0 || y > buffer_height-1 || y < 0) // Only draw pixel within buffer resolution.
 		return;
@@ -623,6 +639,30 @@ void drawPixel(unsigned char *framebuffer, const int x, const int y, const RGB c
 	framebuffer[index++] = color.r;
 	framebuffer[index++] = color.g;
 	framebuffer[index++] = color.b;
+	framebuffer[index++] = color.a;
+}
+void combineFramebuffers()
+{
+	clearBackground(framebuffer[3], (RGBA) { 0x00, 0x00, 0x00, 0xff });
+	for (size_t y = 0; y < buffer_height; ++y)
+	{
+		for (size_t x = 0; x < buffer_width; ++x)
+		{
+			int xx = x * buffer_channels;
+			int yy = y * buffer_channels;
+			int sample = xx + yy * buffer_width;
+
+			for (size_t i = 0; i < fbuffer_count-1; ++i)
+			{
+				if (framebuffer[i][sample + 3] == 0x00)
+					continue;
+				framebuffer[3][sample] = framebuffer[i][sample];
+				framebuffer[3][sample + 1] = framebuffer[i][sample + 1];
+				framebuffer[3][sample + 2] = framebuffer[i][sample + 2];
+				framebuffer[3][sample + 3] = framebuffer[i][sample + 3];
+			}
+		}
+	}
 }
 
 void loadScene()
@@ -762,8 +802,8 @@ void draw3D()
 				wy[3] = wz[3] * fov / wy[3] + halfBufferHeight;
 
 				// Draw wall in 3D
-				RGB c;
-				c.rgb = walls[w].c;
+				RGBA c;
+				c.rgba = walls[w].c;
 				drawWall(wx[0], wx[1], wy[0], wy[1], wy[2], wy[3], s, w, frontBack);
 			}
 
@@ -816,7 +856,7 @@ void drawWall(int x1, int x2, int b1, int b2, int t1, int t2, int s, int w, int 
 			for (int y = y1; y < y2; ++y)
 			{
 				int textureChannels = 3;
-				int r, g, b;
+				int r, g, b, a;
 
 				int xx = ((int)ht % textures[wt].w) * textureChannels;
 				int yy = (int)(textures[wt].h-((int)vt%textures[wt].h)-1) * textureChannels;
@@ -826,12 +866,13 @@ void drawWall(int x1, int x2, int b1, int b2, int t1, int t2, int s, int w, int 
 				r = textures[wt].name[sample] * shade;
 				g = textures[wt].name[sample+1] * shade;
 				b = textures[wt].name[sample+2] * shade;
+				a = 0xff;
 
 				if (r < 0) { r = 0; }
 				if (g < 0) { g = 0; }
 				if (b < 0) { b = 0; }
 
-				drawPixel(framebuffer[0], x, y, (RGB){ r, g, b });
+				drawPixel(framebuffer[0], x, y, (RGBA){ r, g, b, a });
 
 				vt += vt_step;
 			}
@@ -876,17 +917,18 @@ void drawWall(int x1, int x2, int b1, int b2, int t1, int t2, int s, int w, int 
 				int st = sectors[s].st;
 
 				int textureChannels = 3;
-				int r, g, b;
+				int r, g, b, a;
 
 				int xx = ((int)rx % textures[st].w) * textureChannels;
 				int yy = (int)(textures[st].h-((int)ry%textures[st].h)-1) * textureChannels;
 				int sample = xx + yy * textures[wt].w;
 
-				r = textures[wt].name[sample];
-				g = textures[wt].name[sample + 1];
-				b = textures[wt].name[sample + 2];
+				r = textures[st].name[sample];
+				g = textures[st].name[sample + 1];
+				b = textures[st].name[sample + 2];
+				a = 0xff;
 
-				drawPixel(framebuffer[0], x2+xo, y+yo, (RGB){ r, g, b });
+				drawPixel(framebuffer[0], x2+xo, y+yo, (RGBA){ r, g, b, a });
 			}
 		}
 	}
